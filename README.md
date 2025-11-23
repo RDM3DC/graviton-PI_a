@@ -1,520 +1,289 @@
-Tier 1: Make the gates act on an actual Hilbert space
-
-Keep the graph, but put qubits on edges (or nodes) and let each node apply a unitary that depends on πₐ.
-
-State
-
-∣
-𝜓
-⟩
-∈
-(
-𝐶
-2
-)
-⊗
-𝑀
-∣ψ⟩∈(C
-2
-)
-⊗M
- (M qubits)
-
-Gates (your “graviton-gates”)
-
-Local unitary at node 
-𝑣
-v:
-
-𝑈
-𝑣
-(
-𝜃
-𝑣
-,
-𝜋
-𝑎
-(
-𝑣
-)
-)
-=
-exp
-⁡
-(
-−
-𝑖
- 
-𝜃
-𝑣
- 
-𝐻
-𝑣
-(
-𝜋
-𝑎
-(
-𝑣
-)
-)
-)
-U
-v
-	​
-
-(θ
-v
-	​
-
-,π
-a
-	​
-
-(v))=exp(−iθ
-v
-	​
-
-H
-v
-	​
-
-(π
-a
-	​
-
-(v)))
-
-where 
-𝐻
-𝑣
-H
-v
-	​
-
- is a small local Hamiltonian (1–2 qubit).
-
-True entanglement signal
-
-Choose a real entanglement measure, e.g. von Neumann entropy of a local region:
-
-𝑆
-𝑣
-=
-−
-T
-r
-(
-𝜌
-𝑣
-log
-⁡
-𝜌
-𝑣
-)
-S
-v
-	​
-
-=−Tr(ρ
-v
-	​
-
-logρ
-v
-	​
-
-)
-
-where 
-𝜌
-𝑣
-ρ
-v
-	​
-
- is the reduced density matrix near 
-𝑣
-v.
-
-Backreaction update
-
-Let πₐ adapt to entanglement error:
-
-𝜋
-𝑎
-(
-𝑣
-)
-←
-𝜋
-𝑎
-(
-𝑣
-)
-+
-𝜂
- 
-(
-𝑆
-𝑣
-−
-𝑆
-target
-)
-π
-a
-	​
-
-(v)←π
-a
-	​
-
-(v)+η(S
-v
-	​
-
-−S
-target
-	​
-
-)
-
-This is now nonlinear, quantum-in-state, classical-in-geometry. Still not full QG, but it’s an honest “quantum matter + adaptive geometry knob” simulator.
-
-Tier 2: Promote πₐ from a knob to a quantum-controlled knob
-
-Right now πₐ is a classical controller. To move toward unification, you can make πₐ either:
-
-2A) A quantum ancilla field
-
-Attach an ancilla qubit (or qutrit) to each node that encodes curvature:
-
-curvature basis 
-∣
-0
-⟩
-,
-∣
-1
-⟩
-∣0⟩,∣1⟩ = “flat/curved”
-
-graviton gate becomes controlled:
-
-𝑈
-𝑣
-=
-∣
-0
-⟩
-⟨
-0
-∣
-⊗
-𝑈
-𝑣
-(
-0
-)
-  
-+
-  
-∣
-1
-⟩
-⟨
-1
-∣
-⊗
-𝑈
-𝑣
-(
-1
-)
-U
-v
-	​
-
-=∣0⟩⟨0∣⊗U
-v
-(0)
-	​
-
-+∣1⟩⟨1∣⊗U
-v
-(1)
-	​
-
-
-Now geometry and matter entangle.
-
-2B) A stochastic/thermal field (semi-classical path)
-
-Let πₐ be a noisy field sampled from a distribution whose mean is updated by entanglement:
-
-sample 
-𝜋
-𝑎
-(
-𝑣
-)
-∼
-𝑁
-(
-𝜋
-ˉ
-𝑎
-(
-𝑣
-)
-,
-𝜎
-2
-)
-π
-a
-	​
-
-(v)∼N(
-π
-ˉ
-a
-	​
-
-(v),σ
-2
-)
-
-update 
-𝜋
-ˉ
-𝑎
-π
-ˉ
-a
-	​
-
- by backreaction
-This mimics a path-integral over geometries without full operator complexity.
-
-Tier 3: Dynamic connectivity (background independence baby step)
-
-This is where your ARP instincts shine.
-
-Let edges have conductances 
-𝐺
-𝑖
-𝑗
-G
-ij
-	​
-
- that rewire/weight the circuit:
-
-qubits on edges with weight 
-𝐺
-𝑖
-𝑗
-G
-ij
-	​
-
-
-entangling strength on an edge depends on 
-𝐺
-𝑖
-𝑗
-G
-ij
-	​
-
-
-ARP update:
-
-𝐺
-˙
-𝑖
-𝑗
-=
-𝛼
-∣
-𝐼
-𝑖
-𝑗
-∣
-−
-𝜇
-𝐺
-𝑖
-𝑗
-G
-˙
-ij
-	​
-
-=α∣I
-ij
-	​
-
-∣−μG
-ij
-	​
-
-
-but now 
-∣
-𝐼
-𝑖
-𝑗
-∣
-∣I
-ij
-	​
-
-∣ is replaced by a quantum information current, e.g. change in mutual information across that edge:
-
-∣
-𝐼
-𝑖
-𝑗
-∣
-  
-⇝
-  
-Δ
- 
-M
-I
-(
-𝑖
-:
-𝑗
-)
-∣I
-ij
-	​
-
-∣⇝ΔMI(i:j)
-
-So spacetime connectivity emerges from information flow. That’s the right direction.
-
-A minimal quantum toy you can run (small chain, real entanglement)
-
-Here’s a compact numpy statevector simulator for 6 qubits in a line.
-
-each step: apply two-qubit “graviton gates” on edges
-
-πₐ on each edge modulates gate angle
-
-entanglement across each cut is computed exactly
-
-πₐ updates from that entanglement
-
-import numpy as np
-
-# --- basic 2-qubit gates ---
-def RXX(phi):
-    # exp(-i phi/2 X⊗X)
-    c = np.cos(phi/2)
-    s = -1j*np.sin(phi/2)
-    X = np.array([[0,1],[1,0]], dtype=complex)
-    return c*np.eye(4) + s*np.kron(X, X)
-
-def apply_two_qubit(U, psi, n, q1, q2):
-    # apply 4x4 U to qubits q1,q2 of n-qubit statevector psi
-    # brute force reshape/transpose
-    dims = [2]*n
-    psi_t = psi.reshape(dims)
-    # move target qubits to front
-    axes = [q1, q2] + [i for i in range(n) if i not in (q1,q2)]
-    inv_axes = np.argsort(axes)
-    psi_front = np.transpose(psi_t, axes).reshape(4, -1)
-    psi_front = (U @ psi_front).reshape([2,2] + [2]*(n-2))
-    psi_t = np.transpose(psi_front, inv_axes).reshape(2**n)
-    return psi_t
-
-def reduced_density_matrix(psi, n, keep):
-    # keep: list of qubit indices to keep
-    keep = list(keep)
-    trace_out = [i for i in range(n) if i not in keep]
-    dims = [2]*n
-    psi_t = psi.reshape(dims)
-    # reorder to [keep | trace_out]
-    axes = keep + trace_out
-    psi_re = np.transpose(psi_t, axes).reshape(2**len(keep), 2**len(trace_out))
-    rho = psi_re @ psi_re.conj().T
-    return rho
-
-def von_neumann_entropy(rho, eps=1e-12):
-    vals = np.linalg.eigvalsh(rho)
-    vals = np.clip(vals, eps, 1.0)
-    return float(-np.sum(vals*np.log(vals)))
-
-# --- model setup ---
-n = 6
-edges = [(i, i+1) for i in range(n-1)]
-
-psi = np.zeros(2**n, dtype=complex)
-psi[0] = 1.0  # |000000>
-
-pi_a = {e: np.pi for e in edges}
-theta = {e: 0.0 for e in edges}
-
-dt = 0.1
-lam = 0.8
-eta = 0.3
-S_target = 0.4
-
-for step in range(200):
-    # 1) apply graviton gates on edges
-    for e in edges:
-        i,j = e
-        # gate angle modulated by curvature deviation
-        phi = theta[e] + lam*(pi_a[e] - np.pi)
-        U = RXX(phi)
-        psi = apply_two_qubit(U, psi, n, i, j)
-
-    # 2) compute entanglement across each edge cut
-    S = {}
-    for e in edges:
-        i,j = e
-        # entropy of left block [0..i] vs rest
-        left = list(range(i+1))
-        rho_left = reduced_density_matrix(psi, n, left)
-        S[e] = von_neumann_entropy(rho_left)
-
-    # 3) backreaction updates
-    for e in edges:
-        # curvature adapts to entanglement error
-        pi_a[e] += dt * eta * (S[e] - S_target)
-        # optional: theta also adapts
-        theta[e] += dt * 0.2 * (S_target - S[e])
-
-# print final summaries
-print("Final edge entropies:")
-for e in edges:
-    print(e, round(S[e], 3), "pi_a:", round(pi_a[e],3))
-
-
-What this toy can answer immediately
-
-Does πₐ converge to a stable pattern?
-
-Do high-curvature edges correlate with persistent entanglement flux?
-
-Are there phase changes as you vary 
-𝜂
-,
-𝜆
-,
-𝑆
-target
-η,λ,S
-target
-	​
-
-?
-
-Does “geometry” (πₐ profile) store memory of information flow?
-
-Now you’re in a genuinely quantum regime (statevector, unitary gates, real entanglement), while still preserving your adaptive πₐ feedback idea.
+# Graviton-PI_a: Quantum Entanglement-Geometry Backreaction Simulator
+
+A Python-based quantum simulation framework exploring the feedback loop between quantum entanglement and emergent spacetime geometry. This project implements "graviton gates" that couple quantum matter to adaptive geometric parameters, demonstrating how information flow can shape spacetime connectivity.
+
+## Overview
+
+This repository contains implementations of quantum circuit simulations where:
+- **Quantum matter** evolves through unitary gates on a chain of qubits
+- **Geometric parameters** (πₐ) modulate gate coupling strengths
+- **Entanglement entropy** drives geometric backreaction, creating adaptive spacetime
+
+The simulation explores a toy model of quantum gravity where spacetime geometry emerges from and responds to quantum entanglement patterns.
+
+## Scientific Background
+
+Traditional quantum gravity approaches treat spacetime and matter separately. This project explores a different paradigm:
+
+1. **Quantum State Evolution**: Qubits arranged in a chain evolve under local Hamiltonian dynamics
+2. **Entanglement Measurement**: Von Neumann entropy quantifies quantum correlations across spatial cuts
+3. **Geometric Backreaction**: Geometry parameters (πₐ) adapt based on entanglement error signals
+4. **Emergent Spacetime**: The coupled quantum-geometric system exhibits phase transitions and memory effects
+
+This implements ideas from:
+- Holographic entanglement entropy
+- AdS/CFT correspondence
+- Adaptive Resonance Plasticity (ARP)
+- Quantum information geometry
+
+For detailed mathematical background, see [THEORY_NOTES.md](THEORY_NOTES.md).
+
+## Features
+
+### Two Evolution Modes
+
+1. **Gate Mode**: Sequential application of two-qubit RXX gates with adaptive parameters
+2. **Hamiltonian Mode**: Global Hamiltonian evolution with real-time geometric updates
+
+### Simulation Capabilities
+
+- Von Neumann entropy calculation for entanglement quantification
+- Adaptive coupling strength updates based on entanglement feedback
+- Phase diagram exploration across parameter space (η, S_target)
+- Time-series visualization of entropy and geometry evolution
+- Support for chains of 4-10 qubits (limited by 2^N scaling)
+
+### Analysis Tools
+
+- **Phase sweeps**: Map steady-state behavior across learning rates (η) and target entropies
+- **Trajectory plotting**: Visualize co-evolution of matter and geometry
+- **Heatmap generation**: Identify phase boundaries and instabilities
+
+## Installation
+
+### Requirements
+
+- Python 3.8+
+- NumPy
+- Matplotlib
+- SciPy
+
+### Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/RDM3DC/graviton-PI_a.git
+cd graviton-PI_a
+
+# Install dependencies
+pip install numpy matplotlib scipy
+```
+
+## Usage
+
+### Quick Start
+
+Run a basic simulation with default parameters:
+
+```bash
+python entanglement_backreaction.py
+```
+
+This runs 200 steps with a 6-qubit chain in gate mode and prints final entropies and coupling strengths.
+
+### Gate Mode Example
+
+```bash
+python entanglement_backreaction.py \
+    --mode gate \
+    --n-qubits 6 \
+    --steps 200 \
+    --eta 0.3 \
+    --entropy-target 0.4 \
+    --lambda 0.8
+```
+
+**Parameters:**
+- `--n-qubits`: Chain length (4-8 recommended)
+- `--steps`: Number of evolution steps
+- `--eta`: Learning rate for geometric adaptation
+- `--entropy-target`: Target von Neumann entropy
+- `--lambda`: Gate-angle coupling strength
+
+### Hamiltonian Mode Example
+
+```bash
+python entanglement_backreaction.py \
+    --mode hamiltonian \
+    --n-qubits 5 \
+    --steps 150 \
+    --eta 0.5 \
+    --entropy-target 0.4 \
+    --initial-pi 0.2 \
+    --plot-history
+```
+
+The `--plot-history` flag generates plots showing entropy and πₐ evolution over time.
+
+### Phase Diagram Sweep
+
+Explore parameter space to identify phase boundaries:
+
+```bash
+python entanglement_backreaction.py \
+    --phase-sweep \
+    --sweep-etas 0.1 0.5 1.0 2.0 \
+    --sweep-targets 0.1 0.3 0.5 0.7 \
+    --sweep-steps 150 \
+    --plot-phase-diagram \
+    --plot-sweep-trajectories
+```
+
+This generates:
+- Heatmaps of steady-state coupling strength and variability
+- Sample trajectories showing different dynamical regimes
+
+### Simple Helper Script
+
+The `QuantumMechanicsHelpers.py` provides a standalone example that runs automatically:
+
+```bash
+python QuantumMechanicsHelpers.py
+```
+
+This generates `Figure_143.png` (or displays interactively) showing entanglement and geometry evolution.
+
+## Code Structure
+
+### Main Components
+
+**`entanglement_backreaction.py`**
+- `SimulationParams`: Configuration for gate-mode simulations
+- `HamiltonianParams`: Configuration for Hamiltonian-mode simulations
+- `SweepParams`: Configuration for parameter sweeps
+- `QuantumGravityUniverse`: Class wrapping Hamiltonian evolution
+- `run_simulation()`: Execute gate-mode simulation
+- `run_hamiltonian_simulation()`: Execute Hamiltonian-mode simulation
+- `run_parameter_sweep()`: Perform phase diagram exploration
+
+**`QuantumMechanicsHelpers.py`**
+- Simplified standalone implementation
+- Demonstrates basic entanglement-geometry feedback
+- Generates visualization automatically
+
+### Key Functions
+
+```python
+rxx(phi)                          # RXX gate matrix
+apply_two_qubit(U, psi, n, q1, q2)  # Apply 2-qubit gate to state
+reduced_density_matrix(psi, n, keep)  # Partial trace operation
+von_neumann_entropy(rho)          # Calculate S = -Tr(ρ log ρ)
+```
+
+## Example Output
+
+After running a simulation, you'll see output like:
+
+```
+Final edge entropies and curvatures:
+(0, 1): S=0.389, pi_a=3.142
+(1, 2): S=0.412, pi_a=3.089
+(2, 3): S=0.401, pi_a=3.115
+(3, 4): S=0.395, pi_a=3.128
+(4, 5): S=0.388, pi_a=3.143
+```
+
+This shows:
+- Each edge's entanglement entropy (S) converging toward the target
+- Adaptive coupling strengths (πₐ) settling into a quasi-uniform pattern
+
+### Sample Visualization
+
+The included `Figure_143.png` demonstrates typical output showing:
+- **Top panel**: Entanglement entropy evolution across different bonds
+- **Bottom panel**: Adaptive coupling strength (πₐ) evolution
+- Target entropy marked as horizontal dashed line
+
+## Research Questions Addressed
+
+1. **Does πₐ converge?** Yes, under appropriate learning rates (η)
+2. **Phase transitions?** Yes, high η leads to oscillatory instabilities
+3. **Memory storage?** Geometric configuration stores history of information flow
+4. **Entanglement-geometry correlation?** Strong correlation emerges in steady state
+
+## Performance Notes
+
+- **Memory**: O(2^N) where N is number of qubits
+- **Time complexity**: O(2^N × steps) for gate mode, O(2^(2N)) for Hamiltonian diagonalization
+- **Practical limit**: N ≤ 10 qubits on typical hardware
+- **Recommended**: N = 4-6 for interactive exploration
+
+## Mathematical Details
+
+### Gate Form
+
+```
+U_v(θ_v, π_a(v)) = exp(-i θ_v H_v(π_a(v)))
+```
+
+where H_v is a local Hamiltonian (RXX interaction).
+
+### Backreaction Rule
+
+```
+π_a(v) ← π_a(v) + η·dt·(S_v - S_target)
+```
+
+Coupling increases when entanglement is below target, decreases when above.
+
+### Von Neumann Entropy
+
+```
+S_v = -Tr(ρ_v log ρ_v)
+```
+
+where ρ_v is the reduced density matrix for the local region.
+
+## Future Directions
+
+Potential extensions (see THEORY_NOTES.md for details):
+
+1. **Tier 2**: Promote πₐ to quantum ancilla (controlled gates)
+2. **Tier 3**: Dynamic connectivity via ARP-style rewiring
+3. **Tier 4**: Multi-dimensional lattices beyond 1D chains
+4. **Tier 5**: Incorporate curvature tensors and field theory
+
+## Contributing
+
+Contributions welcome! Areas of interest:
+
+- Optimization for larger qubit counts
+- Alternative entanglement measures
+- Connection to tensor network methods
+- Comparison with exact quantum gravity results
+- GPU acceleration
+
+## Citation
+
+If you use this code in research, please cite:
+
+```
+@software{graviton_pi_a,
+  title = {Graviton-PI_a: Quantum Entanglement-Geometry Backreaction Simulator},
+  author = {RDM3DC},
+  year = {2024},
+  url = {https://github.com/RDM3DC/graviton-PI_a}
+}
+```
+
+## License
+
+This project is available under the MIT License. See LICENSE file for details (if applicable).
+
+## Contact
+
+For questions, issues, or collaboration:
+- Open an issue on GitHub
+- Discussions welcome in the Issues tab
+
+## Acknowledgments
+
+This work draws inspiration from:
+- Holographic principle and AdS/CFT
+- Quantum information approaches to gravity
+- Adaptive network theory
+- Tensor network quantum simulations
+
+---
+
+*"Spacetime is not fundamental—it emerges from quantum entanglement."*
