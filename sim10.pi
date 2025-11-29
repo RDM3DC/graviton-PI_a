@@ -1,0 +1,96 @@
+import numpy as np
+import math
+
+# -------------------------------------------
+# ARP + friction test for multiple N values
+# -------------------------------------------
+
+# Global ARP scaling constants (from previous calibration)
+CONST_GAMMA = 0.9053483399593905
+CONST_MU    = 1.1186143571373726
+
+# Approximate constant product G_steady * sqrt(N) ≈ C_G
+C_G = 0.26977  # from earlier 1024/5000 ARP-only calibration
+
+ALPHA_MOMENTUM = 0.03
+
+def run_arp_friction(N, nu, num_iterations=300):
+    """
+    ARP-only Grover-like loop with friction term:
+        dG ~ -gamma_eff * P + mu(1 - G) - nu (G - G_star)
+    No AIN, no external noise.
+    """
+    sqrt_N = math.sqrt(N)
+    target_idx = 0  # arbitrary, uniform start so choice doesn’t matter
+
+    # ARP scaling: gamma, mu ~ 1/sqrt(N)
+    gamma_G = CONST_GAMMA / sqrt_N
+    mu_G    = CONST_MU    / sqrt_N
+    i_decay = sqrt_N / 4.0
+
+    # canonical fixed point for this N
+    G_star = C_G / sqrt_N
+
+    # uniform superposition
+    state = np.ones(N, dtype=complex) / math.sqrt(N)
+    G_angle = 1.0
+
+    history_P = []
+    history_G = []
+
+    for i in range(1, num_iterations + 1):
+        # --- 1. Oracle ---
+        state_o = state.copy()
+        state_o[target_idx] *= -1
+
+        # --- 2. Diffusion (Grover step with adaptive gain) ---
+        mean_amp = np.mean(state_o)
+        diffusion = 2 * mean_amp - state_o
+        new_state = state + G_angle * (diffusion - state)
+        state = new_state / np.linalg.norm(new_state)
+
+        # --- 3. ARP + friction ---
+        P = abs(state[target_idx])**2
+
+        momentum_boost = ALPHA_MOMENTUM * math.exp(-i / i_decay)
+        gamma_eff = gamma_G - momentum_boost
+
+        # dG = -gamma_eff * P + mu_G(1-G) - nu(G - G_star)
+        G_angle += -gamma_eff * P + mu_G * (1.0 - G_angle) - nu * (G_angle - G_star)
+        G_angle = max(0.0, min(1.0, G_angle))
+
+        history_P.append(P)
+        history_G.append(G_angle)
+
+    tail = min(50, len(history_P))
+    P_mean_tail = sum(history_P[-tail:]) / tail
+    G_mean_tail = sum(history_G[-tail:]) / tail
+
+    return {
+        "N": N,
+        "nu": nu,
+        "G_star": G_star,
+        "P_last": history_P[-1],
+        "P_mean_last": P_mean_tail,
+        "G_mean_last": G_mean_tail,
+    }
+
+if __name__ == "__main__":
+    # You can bump these as high as your RAM/CPU tolerate
+    N_list  = [1024, 2048, 5000]  # try adding 10000 or 20000 if it's still fast
+    nu_list = [0.0, 0.01, 0.05, 0.2]
+
+    print("--- ARP + friction scaling test ---")
+    print("Columns: N | nu | G_star | P_last | P_mean_last50 | G_mean_last50\n")
+
+    for N in N_list:
+        for nu in nu_list:
+            res = run_arp_friction(N, nu)
+            print(
+                f"N={res['N']:5d} | nu={res['nu']:.3f} | "
+                f"G*={res['G_star']:.6f} | "
+                f"P_last={res['P_last']:.6f} | "
+                f"P̄_last50={res['P_mean_last']:.6f} | "
+                f"Ḡ_last50={res['G_mean_last']:.6f}"
+            )
+        print()
