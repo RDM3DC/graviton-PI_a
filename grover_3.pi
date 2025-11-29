@@ -1,0 +1,141 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Configuration ---
+num_qubits = 4         
+target_string = "0110" 
+target_idx = int(target_string, 2)
+num_states = 2**num_qubits
+num_iterations = 35    # Increased steps to see long-term stability
+
+# Fundamental Quantum Parameter
+# Optimal angle per step: theta = arcsin(1/sqrt(N)). This is the sqrt(NOT) analog.
+theta_opt = np.arcsin(1 / np.sqrt(num_states))
+# Optimal number of steps: pi / (2 * theta_opt) ~ 3.3 for N=16.
+
+# ARP Hyperparameters (Tuned for Angle Control)
+gamma_G = 0.3      # <--- BOOSTED: Stronger adaptation drive
+mu_G = 0.02        # <--- BOOSTED: Stronger elasticity/decay
+G_init = 1.0       # Initial gain factor (full rotation: 1.0 * theta_opt)
+
+# --- Quantum Setup Functions ---
+def initialize_superposition(n_qubits):
+    num_states = 2**n_qubits
+    return np.ones(num_states, dtype=complex) / np.sqrt(num_states) # Must use complex type
+
+def apply_oracle(state, target_idx):
+    """Marks the truth with a phase flip."""
+    new_state = state.copy()
+    new_state[target_idx] *= -1 
+    return new_state
+
+# --- The NEW Angle-Controlled Grover Iteration ---
+def apply_adaptive_grover_rotation(state, target_idx, G_angle):
+    """
+    Applies the full Grover iteration (Oracle + Diffusion) 
+    scaled by the adaptive angle G_angle * theta_opt.
+    """
+    
+    # Target state |t> and Initial Superposition |s>
+    target_state = np.zeros_like(state)
+    target_state[target_idx] = 1.0
+    
+    superposition_state = initialize_superposition(num_qubits)
+    
+    # Project the current state onto the 'Grover plane' defined by |t> and |s>
+    # Note: State is already |psi>
+    
+    # Find the rotation components on the |t> and |s_perp> basis
+    # A standard Grover step rotates the state by 2*theta
+    
+    # We apply the full Grover operator (D*O) to the state, 
+    # but only *fractionally* by the angle defined by G_angle * theta_opt.
+    
+    # The actual rotation angle for this step
+    current_theta = G_angle * theta_opt * 2 # Standard Grover rotation is 2*theta
+
+    # Calculate the next state directly using the rotation matrix in the subspace
+    # Rotation matrix in the (|s_perp>, |t>) plane (Grover plane) is:
+    # [ cos(2*theta), -sin(2*theta) ]
+    # [ sin(2*theta),  cos(2*theta) ]
+    
+    # This requires decomposition, but we can simplify by calculating the full 
+    # fixed-angle rotation and blending it with the current state:
+    
+    # Step 1: Apply Oracle (O)
+    state_after_oracle = apply_oracle(state, target_idx)
+    
+    # Step 2: Apply Diffusion (D)
+    mean_amplitude = np.mean(state_after_oracle)
+    diffusion_result = 2 * mean_amplitude - state_after_oracle
+    
+    # Full Grover operator result: diffusion_result
+    
+    # Interpolate between the current state and the full Grover result using the angle
+    # This is an approximation of the non-linear rotation, but captures the necessary dampening
+    # If G_angle=1, we do the full step. If G_angle=0, we do nothing.
+    new_state = state + G_angle * (diffusion_result - state)
+    
+    # We must re-normalize after the linear blending approximation
+    return new_state / np.linalg.norm(new_state)
+
+# --- The Simulation Run ---
+
+state_vector = initialize_superposition(num_qubits)
+G_angle = G_init # The adaptive angle factor
+
+# History tracking
+history_target_prob = []
+history_gain = []
+
+print(f"--- ARP-Stabilized Quantum Logic ({num_qubits} Qubits, N={num_states}) ---")
+print(f"Optimal angle per iteration: {np.degrees(theta_opt):.2f}°")
+
+for i in range(1, num_iterations + 1):
+    
+    # 1. Quantum Step: Adaptive Grover Rotation
+    state_vector = apply_adaptive_grover_rotation(state_vector, target_idx, G_angle)
+    
+    # Calculate Current State Metrics
+    prob_vector = np.abs(state_vector)**2
+    target_prob = prob_vector[target_idx]
+
+    # --- 2. ARP Feedback Loop (The Angle/Gain Update) ---
+    # Update Rule: Gain is reduced by the current probability (P) and resists falling below G_init.
+    # P = Target Probability (Measure of success/coherence)
+    G_angle += -gamma_G * target_prob + mu_G * (G_init - G_angle)
+    
+    # Clamping
+    G_angle = np.clip(G_angle, 0.0, 1.0)
+    
+    # Record stats
+    history_target_prob.append(target_prob)
+    history_gain.append(G_angle)
+    
+    if i % 5 == 0 or i == 1:
+        print(f"Iter {i:2d}: Prob={target_prob:.4f} | Angle Factor={G_angle:.4f} ({np.degrees(G_angle*theta_opt*2):.2f}°)")
+
+# 3. Visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Plot 1: Convergence History
+ax1.plot(range(1, num_iterations+1), history_target_prob, 'o-', color='red', label='Target Probability')
+ax1.set_title(f"ARP-Stabilized Amplitude Amplification ({num_qubits} Qubits)")
+ax1.set_xlabel("Iteration Step")
+ax1.set_ylabel("Probability")
+ax1.set_ylim(0, 1.05)
+ax1.grid(True)
+ax1.legend()
+
+# Plot 2: Adaptive Gain (G_angle) History
+ax2.plot(range(1, num_iterations+1), history_gain, 'o--', color='blue', label='Adaptive Angle Factor ($G_{angle}$)')
+ax2.set_title("ARP Angle Dynamics (Stabilization)")
+ax2.set_xlabel("Iteration Step")
+ax2.set_ylabel("Angle Factor (Relative to $\\theta_{opt}$)")
+ax2.set_ylim(0, 1.05)
+ax2.axhline(y=0, color='gray', linestyle=':', label='Stabilized State ($\sim 0$)')
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
