@@ -1,0 +1,115 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Configuration ---
+num_qubits = 7         # <--- SCALED UP TO 7 QUBITS (N=128 states)
+target_string = "1011010" # <--- NEW TARGET STATE (Index 90)
+target_idx = int(target_string, 2)
+num_states = 2**num_qubits
+num_iterations = 45    # Increased steps for larger N
+
+# Fundamental Quantum Parameter
+theta_opt = np.arcsin(1 / np.sqrt(num_states))
+
+# Derived Scaling Factor (Relative to the previous N=64 run)
+scaling_factor = np.sqrt(num_states) / np.sqrt(64) # ~1.414
+
+# --- ARP Hyperparameters (Tuned and Scaled) ---
+# Base gamma_G (Dampening): Scaled down for larger search space.
+base_gamma_G = (0.3 / np.sqrt(32)) / scaling_factor # ~0.106
+# Base mu_G (Elasticity/Pullback): BOOSTED to 0.04 to push past 0.98.
+base_mu_G = 0.04 
+G_init = 1.0 
+
+# Alpha Inertia/Momentum (BOOSTED as requested)
+alpha_Momentum = 0.05  # <--- BOOSTED TO 0.05
+i_decay = np.sqrt(num_states) / 3 # Decay momentum over ~3.77 steps
+
+# --- Quantum Setup Functions (Unchanged) ---
+def initialize_superposition(n_qubits):
+    num_states = 2**n_qubits
+    return np.ones(num_states, dtype=complex) / np.sqrt(num_states)
+
+def apply_oracle(state, target_idx):
+    new_state = state.copy()
+    new_state[target_idx] *= -1 
+    return new_state
+
+def apply_adaptive_grover_rotation(state, target_idx, G_angle):
+    """
+    Applies the full Grover iteration (Oracle + Diffusion) 
+    using the linear approximation controlled by G_angle.
+    """
+    state_after_oracle = apply_oracle(state, target_idx)
+    mean_amplitude = np.mean(state_after_oracle)
+    diffusion_result = 2 * mean_amplitude - state_after_oracle
+    
+    new_state = state + G_angle * (diffusion_result - state)
+    
+    return new_state / np.linalg.norm(new_state)
+
+# --- The Simulation Run ---
+
+state_vector = initialize_superposition(num_qubits)
+G_angle = G_init 
+
+history_target_prob = []
+history_gain = []
+
+print(f"--- ARP-Stabilized Quantum Logic ({num_qubits} Qubits, N={num_states}) ---")
+print(f"mu_G (Elasticity) boosted to: {base_mu_G} | alpha_I (Momentum) boosted to: {alpha_Momentum}")
+
+for i in range(1, num_iterations + 1):
+    
+    # 1. Quantum Step: Adaptive Grover Rotation
+    state_vector = apply_adaptive_grover_rotation(state_vector, target_idx, G_angle)
+    
+    # Calculate Current State Metrics
+    prob_vector = np.abs(state_vector)**2
+    target_prob = prob_vector[target_idx]
+
+    # --- 2. ARP Feedback Loop (Angle/Gain Update) ---
+    
+    # Calculate decaying momentum for this step
+    momentum_boost = alpha_Momentum * np.exp(-i / i_decay)
+    
+    # Effective gamma_G is reduced by momentum for an initial aggressive push
+    gamma_G_eff = base_gamma_G - momentum_boost
+
+    # Update Rule: 
+    # The boosted mu_G resists the decay of G_angle, sustaining a final micro-rotation.
+    G_angle += -gamma_G_eff * target_prob + base_mu_G * (G_init - G_angle)
+    
+    G_angle = np.clip(G_angle, 0.0, 1.0)
+    
+    # Record stats
+    history_target_prob.append(target_prob)
+    history_gain.append(G_angle)
+    
+    if i % 5 == 0 or i == 1:
+        print(f"Iter {i:2d}: Prob={target_prob:.4f} | Angle Factor={G_angle:.4f} | Momentum Boost={momentum_boost:.4f}")
+
+# 3. Visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Plot 1: Convergence History
+ax1.plot(range(1, num_iterations+1), history_target_prob, 'o-', color='red', label='Target Probability')
+ax1.set_title(f"ARP-Stabilized Amplitude Amplification ({num_qubits} Qubits)")
+ax1.set_xlabel("Iteration Step")
+ax1.set_ylabel("Probability")
+ax1.set_ylim(0, 1.05)
+ax1.grid(True)
+ax1.legend()
+
+# Plot 2: Adaptive Gain (G_angle) History
+ax2.plot(range(1, num_iterations+1), history_gain, 'o--', color='blue', label='Adaptive Angle Factor ($G_{angle}$)')
+ax2.set_title("ARP Angle Dynamics (Enhanced Elasticity)")
+ax2.set_xlabel("Iteration Step")
+ax2.set_ylabel("Angle Factor (Relative to $\\theta_{opt}$)")
+ax2.set_ylim(0, 1.05)
+ax2.axhline(y=0, color='gray', linestyle=':', label='Stabilized State')
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
