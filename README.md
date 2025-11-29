@@ -4,7 +4,7 @@ A research codebase for ARP-controlled quantum search experiments and supporting
 
 ## Overview
 
-This repository implements an Adaptive Reward-Penalty (ARP) controller for Grover-like quantum search experiments and documents an integration with a proposed Adaptive Impedance Network (AIN) — a classical hardware layer that provides active decoherence suppression informed by the ARP controller.
+This repository implements an Adaptive Ressistance Principle (ARP) controller for Grover-like quantum search experiments and documents an integration with a proposed Adaptive Impedance Network (AIN) — a classical hardware layer that provides active decoherence suppression informed by the ARP controller.
 
 New: A detailed predictive hardware interface specification for the AIN has been added:
 - docs/AIN_Predictive_Hardware_Interface.md — Predictive Hardware Interface Specification — Adaptive Impedance Network (AIN)
