@@ -1,0 +1,101 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Configuration ---
+num_qubits = 4         # <--- SCALED UP TO 4 QUBITS (N=16 states)
+target_string = "0110" # <--- NEW TARGET STATE (Index 6)
+target_idx = int(target_string, 2)
+num_states = 2**num_qubits
+num_iterations = 25    # High number of steps for stabilization
+
+# Derived Scaling Factor (from sqrt(N) logic)
+# N_init (3 Qubits) was 8, sqrt(N_init) was 2.828
+# N_new (4 Qubits) is 16, sqrt(N_new) is 4.0
+# We normalize the parameters based on the search space size.
+scaling_factor = np.sqrt(num_states) / np.sqrt(8) # Relative to the previous 3-qubit run (N=8)
+
+# ARP Hyperparameters (Tuned and Scaled)
+# We make the parameters slightly weaker (divided by scaling_factor)
+# to allow for the proportionally greater number of "effective" steps required by sqrt(N).
+gamma_G = 0.1 / scaling_factor  # Adaptation drive (scaled)
+mu_G = 0.01 / scaling_factor   # Elasticity/Decay (scaled)
+G_init = 1.0                   # Initial gain factor
+
+# --- Quantum Setup Functions (Unchanged) ---
+def initialize_superposition(n_qubits):
+    num_states = 2**n_qubits
+    return np.ones(num_states) / np.sqrt(num_states)
+
+def apply_oracle(state, target_idx):
+    new_state = state.copy()
+    new_state[target_idx] *= -1 
+    return new_state
+
+def apply_adaptive_diffusion(state, G_amp):
+    mean_amplitude = np.mean(state)
+    standard_diffusion = 2 * mean_amplitude - state
+    new_state = state + G_amp * (standard_diffusion - state)
+    return new_state
+
+# --- The Simulation Run ---
+
+state_vector = initialize_superposition(num_qubits)
+G_amp = G_init 
+
+# History tracking
+history_target_prob = []
+history_gain = []
+
+print(f"--- ARP-Stabilized Quantum Logic ({num_qubits} Qubits, N={num_states}) ---")
+print(f"Scaling Factor (sqrt(N) blending): {scaling_factor:.3f}")
+
+for i in range(1, num_iterations + 1):
+    
+    # 1. Quantum Step A: Oracle (Phase Mark)
+    state_vector = apply_oracle(state_vector, target_idx)
+    
+    # 2. Quantum Step B: Adaptive Diffusion (Amplitude Amplify)
+    state_vector = apply_adaptive_diffusion(state_vector, G_amp)
+    
+    # Calculate Current State Metrics
+    prob_vector = np.abs(state_vector)**2
+    target_prob = prob_vector[target_idx]
+
+    # --- 3. ARP Feedback Loop (The Adaptive Gain Update) ---
+    # Update Rule: Gain is reduced by the current probability (P) and resists falling below G_init.
+    G_amp += -gamma_G * target_prob + mu_G * (G_init - G_amp)
+    
+    G_amp = np.clip(G_amp, 0.0, 1.0)
+    
+    # Record stats
+    history_target_prob.append(target_prob)
+    history_gain.append(G_amp)
+    
+    # We will only print key iterations to avoid overwhelming the log
+    if i % 5 == 0 or i == 1:
+        print(f"Iter {i:2d}: Prob={target_prob:.4f} | Gain={G_amp:.4f}")
+
+# 4. Visualization
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Plot 1: Convergence History
+ax1.plot(range(1, num_iterations+1), history_target_prob, 'o-', color='red', label='Target Probability')
+ax1.set_title(f"ARP-Stabilized Amplitude Amplification ({num_qubits} Qubits)")
+ax1.set_xlabel("Iteration Step")
+ax1.set_ylabel("Probability")
+ax1.set_ylim(0, 1.05)
+ax1.grid(True)
+ax1.legend()
+
+# Plot 2: Adaptive Gain (G_amp) History
+ax2.plot(range(1, num_iterations+1), history_gain, 'o--', color='blue', label='Adaptive Gain ($G_{amp}$)')
+ax2.set_title("ARP Gain Dynamics (Scaled by $\\sqrt{N}$)")
+ax2.set_xlabel("Iteration Step")
+ax2.set_ylabel("Gain Factor")
+ax2.set_ylim(0, 1.05)
+ax2.axhline(y=G_init, color='gray', linestyle=':', label='Initial Gain (1.0)')
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
