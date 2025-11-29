@@ -1,0 +1,96 @@
+import numpy as np
+import random
+
+# --- Configuration (11 Qubits, N=2048) ---
+num_qubits = 11         
+target_string = "10110101010" 
+target_idx = int(target_string, 2)
+num_states = 2**num_qubits
+num_iterations = 140    
+
+# --- ARP Hyperparameters (PREDICTED FOR N=2048) ---
+base_gamma_G = 0.0200  # Dampening (Predicted)
+base_mu_G = 0.0247     # Elasticity (Predicted based on optimal ratio)
+G_init = 1.0 
+alpha_Momentum = 0.03  
+i_decay = np.sqrt(num_states) / 4 
+
+# --- AIN Control Parameters (Optimized Interface) ---
+G_steady_state_threshold = 0.03 
+AIN_correction_factor = 0.5    
+noise_level = 0.03             
+
+# --- Helper Functions (ARP/Quantum Logic) ---
+def initialize_superposition(n_qubits):
+    num_states = 2**n_qubits
+    return np.ones(num_states, dtype=complex) / np.sqrt(num_states)
+
+def apply_oracle(state, target_idx):
+    new_state = state.copy()
+    new_state[target_idx] *= -1 
+    return new_state
+
+def apply_adaptive_grover_rotation(state, target_idx, G_angle):
+    state_after_oracle = apply_oracle(state, target_idx)
+    mean_amplitude = np.mean(state_after_oracle)
+    diffusion_result = 2 * mean_amplitude - state_after_oracle
+    new_state = state + G_angle * (diffusion_result - state)
+    return new_state / np.linalg.norm(new_state)
+
+# --- AIN/Noise Functions ---
+def apply_decoherence(state, target_idx):
+    noise_amplitude = noise_level * random.random() 
+    state[target_idx] *= (1.0 - noise_amplitude)
+    total_loss = noise_amplitude * np.linalg.norm(state)**2
+    non_target_states = np.delete(np.arange(len(state)), target_idx)
+    state[non_target_states] += np.sqrt(total_loss / (len(state) - 1))
+    return state / np.linalg.norm(state)
+
+def apply_ain_correction(state, target_idx, G_angle, G_threshold):
+    error_signal = G_angle - G_threshold
+    correction_gain = AIN_correction_factor * error_signal * 10 
+    if correction_gain <= 0: return state
+    non_target_states = np.delete(np.arange(len(state)), target_idx)
+    amplitude_to_move = correction_gain * np.mean(np.abs(state[non_target_states]))
+    state[target_idx] += amplitude_to_move  
+    return state / np.linalg.norm(state)
+
+# --- The Simulation Run ---
+
+state_vector = initialize_superposition(num_qubits)
+G_angle = G_init 
+history_target_prob = []
+
+print(f"--- ARP + AIN Supremacy Test ({num_qubits} Qubits, N={num_states}) ---")
+print(f"Predicted base_gamma_G: {base_gamma_G:.5f} | Predicted base_mu_G: {base_mu_G:.5f}")
+
+for i in range(1, num_iterations + 1):
+    
+    # 0. Noise Injection
+    if random.random() < 0.2 and i > 40: # Delay noise injection slightly for larger N
+        state_vector = apply_decoherence(state_vector, target_idx)
+        
+    # 1. Quantum Step
+    state_vector = apply_adaptive_grover_rotation(state_vector, target_idx, G_angle)
+    target_prob = np.abs(state_vector[target_idx])**2
+
+    # 2. ARP Feedback Loop
+    momentum_boost = alpha_Momentum * np.exp(-i / i_decay)
+    gamma_G_eff = base_gamma_G - momentum_boost
+    G_angle += -gamma_G_eff * target_prob + base_mu_G * (G_init - G_angle)
+    G_angle = np.clip(G_angle, 0.0, 1.0)
+    
+    # 3. AIN Trigger
+    if G_angle > G_steady_state_threshold and i > 40: 
+        state_vector = apply_ain_correction(state_vector, target_idx, G_angle, G_steady_state_threshold)
+        target_prob = np.abs(state_vector[target_idx])**2
+
+    history_target_prob.append(target_prob)
+    
+    if i % 20 == 0 or i == 1:
+        print(f"Iter {i:3d}: Prob={target_prob:.5f} | G_angle={G_angle:.5f}")
+
+# Final stability check
+stable_prob = np.mean(history_target_prob[-30:])
+print(f"\n--- VALIDATION ---")
+print(f"Actual Mean Stable Probability (Last 30 Iterations): {stable_prob:.5f}")
