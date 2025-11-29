@@ -1,0 +1,97 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Configuration ---
+num_qubits = 5         # <--- SCALED UP TO 5 QUBITS (N=32 states)
+target_string = "10110" # <--- NEW TARGET STATE (Index 22)
+target_idx = int(target_string, 2)
+num_states = 2**num_qubits
+num_iterations = 35    # High number of steps for stabilization
+
+# Fundamental Quantum Parameter
+# Optimal angle per step: theta = arcsin(1/sqrt(N))
+theta_opt = np.arcsin(1 / np.sqrt(num_states))
+
+# Derived Scaling Factor (Relative to the 4-qubit run, N=16)
+scaling_factor = np.sqrt(num_states) / np.sqrt(16)
+
+# --- ARP Hyperparameters (Scaled and Boosted) ---
+# Base parameters are reduced by the scaling factor (~1.414)
+base_gamma_G = 0.3 / scaling_factor 
+base_mu_G = 0.02 / scaling_factor  
+G_init = 1.0 
+
+# New Alpha Inertia/Momentum Parameter (User Request)
+alpha_Momentum = 0.05  # <--- BOOSTED ALPHA (alpha_I)
+i_decay = np.sqrt(num_states) / 2 # Decay momentum over ~2.8 steps
+
+# --- Quantum Setup Functions (Unchanged) ---
+def initialize_superposition(n_qubits):
+    num_states = 2**n_qubits
+    return np.ones(num_states, dtype=complex) / np.sqrt(num_states)
+
+def apply_oracle(state, target_idx):
+    new_state = state.copy()
+    new_state[target_idx] *= -1 
+    return new_state
+
+def apply_adaptive_grover_rotation(state, target_idx, G_angle):
+    target_state = np.zeros_like(state)
+    target_state[target_idx] = 1.0
+    
+    state_after_oracle = apply_oracle(state, target_idx)
+    mean_amplitude = np.mean(state_after_oracle)
+    diffusion_result = 2 * mean_amplitude - state_after_oracle
+    
+    # Linear blend between current state and full Grover step, controlled by G_angle
+    new_state = state + G_angle * (diffusion_result - state)
+    
+    return new_state / np.linalg.norm(new_state)
+
+# --- The Simulation Run ---
+
+state_vector = initialize_superposition(num_qubits)
+G_angle = G_init 
+
+# History tracking
+history_target_prob = []
+history_gain = []
+
+print(f"--- ARP-Stabilized Quantum Logic ({num_qubits} Qubits, N={num_states}) ---")
+print(f"Momentum (alpha_I) applied: {alpha_Momentum}")
+
+for i in range(1, num_iterations + 1):
+    
+    # 1. Quantum Step: Adaptive Grover Rotation
+    state_vector = apply_adaptive_grover_rotation(state_vector, target_idx, G_angle)
+    
+    # Calculate Current State Metrics
+    prob_vector = np.abs(state_vector)**2
+    target_prob = prob_vector[target_idx]
+
+    # --- 2. ARP Feedback Loop (The Angle/Gain Update) ---
+    
+    # Calculate decaying momentum for this step
+    momentum_boost = alpha_Momentum * np.exp(-i / i_decay)
+    
+    # Calculate effective gamma_G (Dampening factor)
+    # The momentum boost is temporarily reducing the dampening effect on G_angle, 
+    # forcing G_angle to stay high initially.
+    gamma_G_eff = base_gamma_G - momentum_boost
+
+    # Update Rule:
+    # 1. -gamma_G_eff * target_prob: Success (High Prob) aggressively pulls G_angle down.
+    # 2. +mu_G * (G_init - G_angle): Elasticity pulls G_angle back toward 1.0 (to continue rotating).
+    G_angle += -gamma_G_eff * target_prob + base_mu_G * (G_init - G_angle)
+    
+    # Clamping
+    G_angle = np.clip(G_angle, 0.0, 1.0)
+    
+    # Record stats
+    history_target_prob.append(target_prob)
+    history_gain.append(G_angle)
+    
+    if i % 5 == 0 or i == 1:
+        print(f"Iter {i:2d}: Prob={target_prob:.4f} | Angle Factor={G_angle:.4f} | Momentum Boost={momentum_boost:.4f}")
+
+# 3. Visualization
