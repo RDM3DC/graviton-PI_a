@@ -1,0 +1,80 @@
+import numpy as np
+import random
+import pandas as pd
+
+# --- Setup for N=1024 (Baseline) ---
+N_1024 = 1024
+gamma_1024 = 0.0283
+mu_1024 = 0.035
+target_idx_1024 = 581 
+i_decay_1024 = np.sqrt(N_1024) / 4
+num_iterations_1024 = 250 # Extended run
+
+# --- Setup for N=5000 (Supremacy) ---
+N_5000 = 5000
+gamma_5000 = 0.0128
+mu_5000 = 0.0158
+target_idx_5000 = 4257
+i_decay_5000 = np.sqrt(N_5000) / 4
+num_iterations_5000 = 350 # Extended run
+
+# --- Global ARP Logic Function ---
+def run_arp_only(N, gamma_G, mu_G, target_idx, i_decay, num_iterations):
+    state_vector = np.ones(N, dtype=complex) / np.sqrt(N)
+    G_angle = 1.0 
+    history_G_angle = []
+    
+    for i in range(1, num_iterations + 1):
+        # 1. Quantum Step
+        state_after_oracle = state_vector.copy()
+        state_after_oracle[target_idx] *= -1 
+        mean_amplitude = np.mean(state_after_oracle)
+        diffusion_result = 2 * mean_amplitude - state_after_oracle
+        new_state = state_vector + G_angle * (diffusion_result - state_vector)
+        state_vector = new_state / np.linalg.norm(new_state)
+
+        # 2. ARP Feedback Loop
+        target_prob = np.abs(state_vector[target_idx])**2
+        momentum_boost = 0.03 * np.exp(-i / i_decay)
+        gamma_G_eff = gamma_G - momentum_boost
+        G_angle += -gamma_G_eff * target_prob + mu_G * (1.0 - G_angle)
+        G_angle = np.clip(G_angle, 0.0, 1.0)
+        
+        history_G_angle.append(G_angle)
+        
+    stable_G_angle = np.mean(history_G_angle[-50:])
+    return stable_G_angle
+
+print(f"--- ARP-ONLY CALIBRATION (Noise and AIN Disabled) ---")
+
+# Run N=1024
+stable_G_angle_1024 = run_arp_only(N_1024, gamma_1024, mu_1024, target_idx_1024, i_decay_1024, num_iterations_1024)
+print(f"N=1024 (250 Iters): G_angle_steady = {stable_G_angle_1024:.5f}")
+
+# Run N=5000
+stable_G_angle_5000 = run_arp_only(N_5000, gamma_5000, mu_5000, target_idx_5000, i_decay_5000, num_iterations_5000)
+print(f"N=5000 (350 Iters): G_angle_steady = {stable_G_angle_5000:.5f}")
+
+# --- NORMALIZATION CHECK (V2: Clean Data) ---
+
+df_clean = pd.DataFrame({
+    'N': [N_1024, N_5000],
+    'sqrt(N)': [np.sqrt(N_1024), np.sqrt(N_5000)],
+    'G_angle_steady': [stable_G_angle_1024, stable_G_angle_5000]
+})
+
+# Calculate C for each N assuming the G_hat target is 1.9184
+C_fit_1024_clean = (df_clean.loc[df_clean['N'] == 1024, 'G_angle_steady'].iloc[0] * df_clean.loc[df_clean['N'] == 1024, 'sqrt(N)'].iloc[0]) / 1.9184
+C_fit_5000_clean = (df_clean.loc[df_clean['N'] == 5000, 'G_angle_steady'].iloc[0] * df_clean.loc[df_clean['N'] == 5000, 'sqrt(N)'].iloc[0]) / 1.9184
+C_avg_clean = (C_fit_1024_clean + C_fit_5000_clean) / 2
+
+# Calculate Normalized Gain (G_hat) using C_avg_clean
+df_clean['G_hat'] = (df_clean['G_angle_steady'] * df_clean['sqrt(N)']) / C_avg_clean
+
+print(f"\nAverage Fitted Scaling Constant C_avg (Clean): {C_avg_clean:.5f}")
+
+print("\n--- FINAL NORMALIZED GAIN (G^hat) ---")
+print(df_clean[['N', 'G_angle_steady', 'G_hat']].to_markdown(index=False))
+
+print(f"\nTarget Canonical Fixed Point (G*): 1.9184")
+print(f"Average Observed G_hat: {df_clean['G_hat'].mean():.5f}")
