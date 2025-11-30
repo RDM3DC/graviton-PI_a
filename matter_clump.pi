@@ -1,0 +1,85 @@
+# adaptive_matter_geometry_1d.py
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Parameters ---
+N = 200            # number of lattice sites
+dx = 1.0
+dt = 0.01
+steps = 5000
+
+# Matter params
+c2      = 1.0      # wave speed^2
+m2      = 0.1      # mass^2
+lambda_m = 0.0     # self-interaction (set >0 if you want)
+g_coup  = 0.5      # coupling to geometry
+
+# Geometry (pi_a) params
+pi0      = np.pi   # rest value
+k_spring = 0.2     # pull back to pi0
+D_pi     = 0.2     # diffusion coefficient (smoothing)
+mu_geom  = 0.5     # damping in pi_a equation (overdamped)
+
+# --- Fields ---
+# matter field phi (real scalar for simplicity), with velocity pi_phi
+phi     = np.zeros(N)
+phi_dot = np.zeros(N)
+
+# geometry field pi_a
+pi_a = np.full(N, pi0)
+
+# initial matter lump in the center
+x = np.arange(N)
+phi += np.exp(-0.5 * ((x - N/2) / 5.0)**2)
+
+# history for plotting
+phi_hist  = []
+pia_hist  = []
+
+def laplacian(arr, dx):
+    # periodic boundary for simplicity; you can switch to fixed if desired
+    return (np.roll(arr, -1) - 2*arr + np.roll(arr, 1)) / (dx**2)
+
+for t in range(steps):
+    # --- geometry update (overdamped first-order ODE) ---
+    # d pi_a / dt = D_pi * lap(pi_a) - k (pi_a - pi0) - g |phi|^2
+    lap_pi = laplacian(pi_a, dx)
+    source = (phi**2)  # |psi|^2 proxy
+    dpi_dt = D_pi * lap_pi - k_spring * (pi_a - pi0) - g_coup * source
+    # include damping by scaling step (mu_geom acts like 1/mu in time-scale)
+    pi_a += dt * dpi_dt / mu_geom
+
+    # --- matter update (simple wave / KG) ---
+    # phi_ddot = c^2 lap(phi) - m^2 phi - lambda_m phi^3 - g (pi_a - pi0) phi
+    lap_phi = laplacian(phi, dx)
+    phi_ddot = c2 * lap_phi - m2 * phi - lambda_m * (phi**3) - g_coup * (pi_a - pi0) * phi
+
+    # velocity and field update (Verlet-like)
+    phi_dot += dt * phi_ddot
+    phi     += dt * phi_dot
+
+    if t % 50 == 0:
+        phi_hist.append(phi.copy())
+        pia_hist.append(pi_a.copy())
+
+# --- Visualization ---
+phi_hist = np.array(phi_hist)
+pia_hist = np.array(pia_hist)
+T, X = phi_hist.shape
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+
+im1 = ax1.imshow(phi_hist, aspect='auto')
+ax1.set_ylabel('time step (×50)')
+ax1.set_title('Matter field φ(x,t)')
+plt.colorbar(im1, ax=ax1)
+
+im2 = ax2.imshow(pia_hist, aspect='auto')
+ax2.set_ylabel('time step (×50)')
+ax2.set_xlabel('lattice site')
+ax2.set_title('Geometry field π_a(x,t)')
+plt.colorbar(im2, ax=ax2)
+
+plt.tight_layout()
+plt.show()
