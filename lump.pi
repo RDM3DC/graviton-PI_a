@@ -1,0 +1,91 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Grid / time ---
+N   = 200
+dx  = 1.0
+dt  = 0.005           # smaller time step
+steps = 6000
+
+# --- Matter params ---
+c2        = 1.0       # wave speed^2
+m2        = 0.05      # mass^2
+lambda_m  = 0.0       # self-interaction (off for now)
+g_coup    = 0.05      # weaker coupling to geometry
+
+# --- Geometry (pi_a) params (inertial) ---
+pi0        = np.pi
+k_spring   = 0.2      # pull back to pi0
+lambda_pi  = 0.2      # spatial coupling
+kappa      = 1.0      # inertia
+mu_damping = 0.1      # NEW: gentle damping
+
+# --- Fields ---
+phi     = np.zeros(N)
+phi_dot = np.zeros(N)
+
+pi_a     = np.full(N, pi0)
+pi_a_dot = np.zeros(N)
+
+# initial matter lump in center, slightly smaller amplitude
+x = np.arange(N)
+phi += 0.5 * np.exp(-0.5 * ((x - N/2) / 6.0)**2)
+
+phi_hist = []
+pia_hist = []
+
+def laplacian(arr, dx):
+    return (np.roll(arr, -1) - 2*arr + np.roll(arr, 1)) / (dx**2)
+
+for t in range(steps):
+    # --- 1. Geometry update (second-order) ---
+    lap_pi = laplacian(pi_a, dx)
+    source = phi**2
+
+    pi_a_ddot = (lambda_pi * lap_pi
+                 - k_spring * (pi_a - pi0)
+                 - g_coup * source
+                 - mu_damping * pi_a_dot) / kappa
+
+    pi_a_dot += dt * pi_a_ddot
+    pi_a     += dt * pi_a_dot
+
+    # --- 2. Matter update ---
+    lap_phi = laplacian(phi, dx)
+    phi_ddot = c2 * lap_phi - m2 * phi - g_coup * (pi_a - pi0) * phi
+
+    phi_dot += dt * phi_ddot
+    phi     += dt * phi_dot
+
+    # optional: soft clipping to avoid catastrophic overflow
+    phi   = np.clip(phi,   -1e3, 1e3)
+    pi_a  = np.clip(pi_a,  pi0-5.0, pi0+5.0)
+
+    if t % 50 == 0:
+        phi_hist.append(phi.copy())
+        pia_hist.append(pi_a.copy())
+
+phi_hist = np.array(phi_hist)
+pia_hist = np.array(pia_hist)
+T, X = phi_hist.shape
+time_extent = [0, N, 0, T * 50 * dt]
+
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+
+im1 = ax1.imshow(phi_hist, aspect='auto', origin='lower',
+                 cmap='viridis', extent=time_extent)
+ax1.set_ylabel('Time (t)')
+ax1.set_title('Matter field $\\phi(x,t)$ (wave propagation)')
+plt.colorbar(im1, ax=ax1, label='Field amplitude')
+
+# show pi_a as deviation from pi0
+im2 = ax2.imshow(pia_hist - pi0, aspect='auto', origin='lower',
+                 cmap='seismic', vmin=-0.5, vmax=0.5,
+                 extent=time_extent)
+ax2.set_ylabel('Time (t)')
+ax2.set_xlabel('Lattice site (x)')
+ax2.set_title('Geometry field deviation $\\pi_a(x,t)-\\pi_0$')
+plt.colorbar(im2, ax=ax2, label='Deviation')
+
+plt.tight_layout()
+plt.show()
